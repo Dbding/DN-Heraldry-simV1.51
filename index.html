@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>龍之谷紋章合成模擬器V1.51</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #111827;
+            color: #e5e7eb;
+        }
+        .simulator-bg {
+            background-image: url('https://images.unsplash.com/photo-1531308141238-a361b2a959ef?q=80&w=2070&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #9ca3af;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .tab-btn.active {
+            color: #f9fafb;
+            border-bottom-color: #6366f1;
+        }
+        .synth-btn {
+            background-color: #4338ca;
+            color: white;
+            font-weight: 700;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        .synth-btn:hover {
+            background-color: #4f46e5;
+        }
+        .log-entry {
+            padding: 0.5rem 0.75rem;
+            border-left-width: 4px;
+            margin-bottom: 0.5rem;
+            animation: fadeIn 0.5s ease;
+        }
+        .log-entry.glow-useful {
+            animation: glowing-border 1.5s infinite alternate;
+        }
+        @keyframes glowing-border {
+            0% {
+                border-color: #fde047;
+                box-shadow: 0 0 5px #fde047;
+            }
+            100% {
+                border-color: transparent;
+                box-shadow: 0 0 20px #fde047;
+            }
+        }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="simulator-bg max-w-7xl mx-auto rounded-2xl shadow-2xl overflow-hidden">
+        <div class="glass-panel w-full h-full p-4 sm:p-8">
+            <header class="text-center mb-6">
+                <h1 class="text-3xl md:text-4xl font-bold text-white">龍之谷　紋章合成模擬器V1.51</h1>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Left Panel: Inventory & Stats -->
+                <div class="lg:col-span-3">
+                    <h2 class="text-2xl font-bold text-white mb-4">我的物品欄</h2>
+                    <div id="inventory-panel" class="space-y-4"></div>
+                    <div class="mt-6">
+                        <h2 class="text-2xl font-bold text-white mb-4">合成統計</h2>
+                        <div id="stats-panel" class="space-y-3 bg-gray-900 bg-opacity-50 p-4 rounded-lg">
+                            <!-- Stats will be rendered here -->
+                        </div>
+                        <button id="reset-stats-btn" class="w-full mt-4 text-sm bg-red-800 hover:bg-red-700 text-white py-1 rounded-md transition-colors">重置統計</button>
+                    </div>
+                </div>
+
+                <!-- Center Panel: Synthesis Controls -->
+                <div class="lg:col-span-5">
+                    <div id="tabs" class="flex justify-start border-b border-gray-700 mb-6">
+                        <button class="tab-btn" data-tier="C">C → B</button>
+                        <button class="tab-btn" data-tier="B">B → A</button>
+                        <button class="tab-btn" data-tier="A">A → S</button>
+                        <button class="tab-btn" data-tier="S">S → S</button>
+                    </div>
+                    <div class="flex flex-col space-y-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-indigo-300 mb-2" id="synthesis-title"></h2>
+                        </div>
+                        <div id="input-options" class="space-y-3"></div>
+                        <div class="flex items-center space-x-4">
+                            <button id="synthesize-btn" class="synth-btn flex-1">合成 1 次</button>
+                            <button id="synthesize-10-btn" class="synth-btn flex-1 bg-gray-600 hover:bg-gray-500">連續合成 10 次</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Log -->
+                <div class="lg:col-span-4">
+                    <h2 class="text-2xl font-bold text-gray-300 mb-2">合成日誌</h2>
+                    <div id="log-area" class="bg-black bg-opacity-40 p-4 rounded-lg h-96 overflow-y-auto">
+                        <p class="text-gray-500 text-center">點擊合成按鈕開始...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Author Credit -->
+    <div class="fixed bottom-20 right-20 text-L text-white opacity-50 z50">
+        作者：雷神之錘　蘋果咬一口
+    </div>
+
+    <script>
+        // 紋章主名稱清單 (共 18 個)
+        const crestNames = ["拘束的", "不屈的", "意志的", "衝擊的", "幸運的", "熊的", "智慧的", "風的", "健康的", "破壞的", "魔力的", "神力的", "生命的", "朝氣的", "終極的", "致命的", "森嚴的", "帳幕的"];
+        
+        // 有用第三屬性名稱清單 (共 3 個)
+        const usefulThirdAttributeNames = ["首領增傷10%", "終極傷害119", "暴擊傷害10%"];
+        
+        // 無用第三屬性名稱清單 (共 15 個)
+        const uselessThirdAttributeNames = ["暴擊率5%", "暴擊抗性率5%", "暴擊傷害抗性10%", "體質7%", "首領抗性10%", "劍士增傷5%", "劍士抗性5%", "弓箭手增傷5%", "弓箭手抗性5%", "法師增傷5%", "法師抗性5%", "牧師增傷5%", "牧師抗性5%", "暴擊抗性15%", "僵直抗性15%", "暈眩抗性15%"];
+
+        // 將所有第三屬性名稱合併為一個清單，用於隨機抽選
+        const allThirdAttributeNames = [...usefulThirdAttributeNames, ...uselessThirdAttributeNames];
+        const aPlusThirdAttributeName = "額外百分比%";
+
+        const state = {
+            inventory: { C: 1000, B: 200, A: 50, S: 10 },
+            stats: { a_plus: 0, useful_3rd: 0, useless_3rd: 0 },
+            activeTier: 'C',
+            selectedAmount: 2,
+        };
+
+        const synthesisConfig = {
+            C: { title: 'C → B 合成', amounts: [2, 3, 4], probs: { 2: 0.30, 3: 0.60, 4: 0.90 }, color: 'text-green-400' },
+            B: { title: 'B → A 合成', amounts: [2, 3, 4], probs: { 2: 0.06, 3: 0.12, 4: 0.18 }, color: 'text-blue-400' },
+            A: { title: 'A → S 合成', amounts: [2, 3, 4], probs: { 2: 0.02, 3: 0.04, 4: 0.06 }, color: 'text-yellow-400' },
+            S: { title: 'S → S 合成', amounts: [2], probs: { 2: 1.0 }, color: 'text-purple-400' }
+        };
+
+        const dom = {
+            tabs: document.getElementById('tabs'),
+            title: document.getElementById('synthesis-title'),
+            inventoryPanel: document.getElementById('inventory-panel'),
+            statsPanel: document.getElementById('stats-panel'),
+            resetStatsBtn: document.getElementById('reset-stats-btn'),
+            options: document.getElementById('input-options'),
+            synthBtn: document.getElementById('synthesize-btn'),
+            synth10Btn: document.getElementById('synthesize-10-btn'),
+            logArea: document.getElementById('log-area'),
+        };
+
+        /**
+         * 隨機從清單中獲取一個名稱。
+         * @param {Array<string>} list - 名稱清單。
+         * @returns {string} 隨機名稱。
+         */
+        function getRandomName(list) {
+            return list[Math.floor(Math.random() * list.length)];
+        }
+
+        /**
+         * 模擬 S 級紋章的合成結果。
+         * @returns {object} 描述合成結果的物件。
+         */
+        function getSOutcome() {
+            const roll = Math.random();
+            const mainCrestName = getRandomName(crestNames);
+
+            // 25% S級技能紋章
+            if (roll < 0.25) {
+                return { type: 'skill', name: 'S級技能紋章' };
+            }
+            // 20% 帶第三屬性的 S 級紋章
+            if (roll < 0.25 + 0.20) {
+                let thirdAttributePool = [...allThirdAttributeNames];
+                
+                // 如果主紋章是「終極的」，則不能有「終極傷害119」第三屬性
+                if (mainCrestName === '終極的') {
+                    thirdAttributePool = thirdAttributePool.filter(name => name !== '終極傷害119');
+                }
+                
+                const thirdAttributeName = getRandomName(thirdAttributePool);
+                const isUseful = usefulThirdAttributeNames.includes(thirdAttributeName);
+                const type = isUseful ? 'useful' : 'useless';
+                
+                return { type, mainName: mainCrestName, thirdName: thirdAttributeName };
+            }
+            // 55% 一般 S 級紋章
+            return { type: 'normal', name: mainCrestName };
+        }
+
+        /**
+         * 模擬 A 級紋章的合成結果。
+         * @returns {object} 描述合成結果的物件。
+         */
+        function getAOutcome() {
+            const roll = Math.random();
+            const mainCrestName = getRandomName(crestNames);
+            
+            // 25% A級技能紋章
+            if (roll < 0.25) {
+                return { type: 'skill', name: 'A級技能紋章' };
+            }
+            // 20% 帶第三屬性的 A 級紋章 (A+)
+            if (roll < 0.25 + 0.20) {
+                // 如果主紋章是「終極的」，則不能有第三屬性。
+                if (mainCrestName === '終極的') {
+                    return { type: 'normal', name: mainCrestName };
+                }
+                const thirdAttributeName = aPlusThirdAttributeName;
+                const type = 'aplus'; // A+ type is unique
+                return { type, mainName: mainCrestName, thirdName: thirdAttributeName };
+            }
+            // 55% 一般 A 級紋章
+            return { type: 'normal', name: mainCrestName };
+        }
+
+        /**
+         * 執行單次合成模擬並更新狀態。
+         * @returns {object} 包含合成結果訊息和顏色的物件。
+         */
+        function runSynthesis() {
+            const tier = state.activeTier;
+            const amount = state.selectedAmount;
+            
+            if (state.inventory[tier] < amount) {
+                return { success: false, message: `材料不足！需要 ${amount} 個 ${tier} 紋章。`, color: 'border-red-500' };
+            }
+
+            state.inventory[tier] -= amount;
+            const successRate = synthesisConfig[tier].probs[amount];
+            
+            if (Math.random() < successRate) {
+                if (tier === 'A' || tier === 'S') {
+                    const sResult = getSOutcome();
+                    state.inventory.S++;
+                    
+                    let message = '';
+                    let color = 'border-green-500';
+                    let glow = false;
+
+                    if (sResult.type === 'useful') {
+                        state.stats.useful_3rd++;
+                        message = `您獲得了 1 個 S+級 ${sResult.mainName} 強化紋章，附帶了：【${sResult.thirdName}】！`;
+                        color = 'border-yellow-400';
+                        glow = true;
+                    } else if (sResult.type === 'useless') {
+                        state.stats.useless_3rd++;
+                        message = `您獲得了 1 個 S+級 ${sResult.mainName} 強化紋章，附帶的是：【${sResult.thirdName}】。`;
+                        color = 'border-gray-500';
+                    } else if (sResult.type === 'skill') {
+                        message = `您獲得了 1 個【S級技能紋章】。`;
+                    } else { // normal
+                        message = `您獲得了 1 個 S級 ${sResult.name} 強化紋章。`;
+                    }
+                    return { success: true, message, color, glow };
+                } else if (tier === 'B') {
+                    const aResult = getAOutcome();
+                    state.inventory.A++;
+                    
+                    let message = '';
+                    let color = 'border-green-500';
+
+                    if (aResult.type === 'aplus') {
+                        state.stats.a_plus++;
+                        message = `運氣不錯！您合成了 1 個帶百分比%的 A+級 ${aResult.mainName} 強化紋章。`;
+                        color = 'border-blue-400';
+                    } else if (aResult.type === 'skill') {
+                        message = `成功！獲得了 1 個【A級技能紋章】。`;
+                    } else { // normal
+                        message = `成功！獲得了 1 個 A級 ${aResult.name} 強化紋章。`;
+                    }
+                    return { success: true, message, color };
+
+                } else { // C->B
+                    const nextTier = 'B';
+                    state.inventory[nextTier]++;
+                    const crestName = getRandomName(crestNames);
+                    const message = `合成成功！獲得 1 個 B級 ${crestName} 強化紋章。`;
+                    return { success: true, message, color: 'border-green-500' };
+                }
+
+            } else {
+                state.inventory[tier]++;
+                const message = `合成失敗...已返還 1 個 ${tier} 紋章。`;
+                return { success: false, message, color: 'border-red-500' };
+            }
+        }
+
+        /**
+         * 將新的訊息加入日誌區。
+         * @param {object} result - 合成結果物件。
+         */
+        function logResult(result) {
+            if (dom.logArea.querySelector('p')) dom.logArea.innerHTML = '';
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${result.color}`;
+            entry.textContent = result.message;
+            if (result.glow) {
+                entry.classList.add('glow-useful');
+            }
+            dom.logArea.prepend(entry);
+        }
+
+        /**
+         * 渲染目前的物品欄狀態。
+         */
+        function renderInventory() {
+            dom.inventoryPanel.innerHTML = Object.keys(state.inventory).map(tier => `
+                <div>
+                    <label for="inv-${tier}" class="font-bold ${synthesisConfig[tier].color}">${tier} 級紋章</label>
+                    <input type="number" id="inv-${tier}" value="${state.inventory[tier]}" 
+                           class="w-full bg-gray-900 border border-gray-600 rounded-md p-2 mt-1 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            `).join('');
+
+            Object.keys(state.inventory).forEach(tier => {
+                document.getElementById(`inv-${tier}`).addEventListener('input', (e) => {
+                    const value = parseInt(e.target.value, 10);
+                    state.inventory[tier] = isNaN(value) || value < 0 ? 0 : value;
+                    e.target.value = state.inventory[tier];
+                });
+            });
+        }
+
+        /**
+         * 渲染合成統計數據。
+         */
+        function renderStats() {
+            dom.statsPanel.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span class="text-blue-400">A+ 紋章:</span>
+                    <span class="font-bold text-xl text-white">${state.stats.a_plus}</span>
+                </div>
+                <hr class="border-gray-700 my-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-yellow-300">S+紋(有用第三屬):</span>
+                    <span class="font-bold text-xl text-white">${state.stats.useful_3rd}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-400">S+紋(無用第三屬):</span>
+                    <span class="font-bold text-xl text-white">${state.stats.useless_3rd}</span>
+                </div>
+            `;
+        }
+
+        /**
+         * 渲染合成控制選項。
+         */
+        function renderControls() {
+            const tier = state.activeTier;
+            const config = synthesisConfig[tier];
+            
+            dom.title.textContent = config.title;
+            dom.options.innerHTML = config.amounts.map(amount => `
+                <label class="flex items-center p-3 rounded-lg cursor-pointer ${state.selectedAmount === amount ? 'bg-indigo-900' : 'bg-gray-800'} hover:bg-indigo-800">
+                    <input type="radio" name="amount" value="${amount}" ${state.selectedAmount === amount ? 'checked' : ''} class="hidden">
+                    <span class="text-lg">使用 ${amount} 個 ${tier} 紋章 (成功率: ${config.probs[amount] * 100}%)</span>
+                </label>
+            `).join('');
+            
+            if (tier === 'S' || tier === 'A') {
+                const infoHtml = `
+                    <div class="bg-gray-900 bg-opacity-70 p-3 rounded-lg mt-4 text-sm text-gray-300">
+                        <h4 class="font-bold text-white mb-2">S級產物機率</h4>
+                        <p>一般S級屬性紋章: <span class="font-bold text-white">55%</span></p>
+                        <p>S級技能紋章: <span class="font-bold text-white">25%</span></p>
+                        <p>S+級第三屬紋章: <span class="font-bold text-white">20%</span></p>
+                    </div>
+                `;
+                dom.options.insertAdjacentHTML('beforeend', infoHtml);
+            }
+            
+            if (tier === 'B') {
+                const infoHtml = `
+                    <div class="bg-gray-900 bg-opacity-70 p-3 rounded-lg mt-4 text-sm text-gray-300">
+                        <h4 class="font-bold text-white mb-2">A級產物機率</h4>
+                        <p>一般A屬性紋章: <span class="font-bold text-white">55%</span></p>
+                        <p>A級技能紋章: <span class="font-bold text-white">25%</span></p>
+                        <p>A+級第三屬紋章: <span class="font-bold text-white">20%</span></p>
+                    </div>
+                `;
+                dom.options.insertAdjacentHTML('beforeend', infoHtml);
+            }
+
+            document.querySelectorAll('input[name="amount"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    state.selectedAmount = parseInt(e.target.value, 10);
+                    renderControls();
+                });
+            });
+        }
+
+        /**
+         * 切換合成頁籤。
+         * @param {string} tier - 要切換到的等級 (例如：'C', 'B')。
+         */
+        function switchTab(tier) {
+            state.activeTier = tier;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tier === tier);
+            });
+            state.selectedAmount = synthesisConfig[tier].amounts[0];
+            renderControls();
+        }
+
+        // --- 事件監聽器 ---
+        dom.tabs.addEventListener('click', (e) => {
+            if (e.target.matches('.tab-btn')) switchTab(e.target.dataset.tier);
+        });
+
+        dom.synthBtn.addEventListener('click', () => {
+            const result = runSynthesis();
+            logResult(result);
+            renderInventory();
+            renderStats();
+        });
+
+        dom.synth10Btn.addEventListener('click', () => {
+            for (let i = 0; i < 10; i++) {
+                const result = runSynthesis();
+                logResult(result);
+                if (state.inventory[state.activeTier] < state.selectedAmount) {
+                    logResult({ success: false, message: `材料不足，連續合成中止。`, color: 'border-red-500' });
+                    break;
+                }
+            }
+            renderInventory();
+            renderStats();
+        });
+
+        dom.resetStatsBtn.addEventListener('click', () => {
+            state.stats.a_plus = 0;
+            state.stats.useful_3rd = 0;
+            state.stats.useless_3rd = 0;
+            renderStats();
+            logResult({ success: false, message: '統計數據已重置。', color: 'border-blue-500' });
+        });
+
+        // --- 初始設定 ---
+        renderInventory();
+        renderStats();
+        switchTab('C');
+    </script>
+</body>
+</html>
